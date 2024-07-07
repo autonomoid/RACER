@@ -5,20 +5,26 @@ import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
 
-# Define the input and output directories
-input_dir = r'datasets\\cars\\test'  # Replace with your input directory
+###########################################################
+
+model_name = "yolov10b"
+dataset = "car_front-rear"
+input_image_dir = r'datasets\\cars\\test'
+
+###########################################################
 
 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-output_dir = os.path.join("detection_results", "images", f"run_{timestamp}")
+output_dir = os.path.join("detection_results", "images", model_name, dataset, f"run_{timestamp}")
 os.makedirs(output_dir, exist_ok=True)
 
-# Load the pre-trained YOLO model
-model = YOLO(r'runs\\detect\\train4\\weights\\best.pt')
+# Load the trained YOLO model
+trained_model = os.path.join("trained_models", model_name, dataset, "train", "weights", "best.pt")
+model = YOLO(trained_model)
 
 # Loop through all images in the input directory
-for filename in os.listdir(input_dir):
+for filename in os.listdir(input_image_dir):
     if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-        img_path = os.path.join(input_dir, filename)
+        img_path = os.path.join(input_image_dir, filename)
 
         # Run inference
         results = model(img_path)

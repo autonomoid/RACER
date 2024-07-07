@@ -4,21 +4,30 @@ from PIL import Image
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import os
+from datetime import datetime
 
-# Load the pre-trained YOLO model
-# Replace 'best.pt' with the path to your pre-trained YOLO model weights file
-#model = torch.hub.load('ultralytics/yolov5', 'custom', path='path/to/your/best.pt', source='local')
-model = YOLO(r'runs\\detect\\train13\\weights\\best.pt')
+###########################################################
+
+model_name = "yolov10b"
+dataset = "car_front-rear"
+input_image = r'datasets\\cars\\test\\test1.png'
+
+###########################################################
+
+timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+output_dir = os.path.join("detection_results", "images", model_name, dataset, f"run_{timestamp}")
+os.makedirs(output_dir, exist_ok=True)
+
+# Load the trained YOLO model
+trained_model = os.path.join("trained_models", model_name, dataset, "train", "weights", "best.pt")
+model = YOLO(trained_model)
 
 # Prepare the input image
-img_path = r'datasets\\cars\\test\\test1.png'  # Replace with the path to your input image
-img = Image.open(img_path)
+img = Image.open(input_image)
 
 # Run inference
-results = model(img_path)
-
-# Run inference
-results = model(img_path)
+results = model(input_image)
 
 # Use the original image from results
 img = results[0].orig_img
@@ -40,6 +49,14 @@ for box in boxes:
 
     # Put the label near the bounding box
     cv2.putText(img_rgb, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+
+    # Convert back to BGR for saving with OpenCV
+    img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
+
+    # Save the result to the output directory
+    output_file = os.path.basename(input_image)
+    output_path = os.path.join(output_dir, output_file)
+    cv2.imwrite(output_path, img_bgr)
 
 # Display the image with bounding boxes
 plt.figure(figsize=(10, 10))

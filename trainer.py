@@ -2,12 +2,21 @@ from ultralytics import YOLO
 import os
 
 def main():
-    model = YOLO("yolov8n.pt")
 
-    dataset="car_front-rear"
-    data_config_file=os.path.join("data_config_files", dataset+".yaml")
+    ###########################################################
+
+    #model_name = "yolov8n"
+    model_name = "yolov10b"
     
-    results = model.train(data=data_config_file, epochs=100, imgsz=640)
+    dataset = "car_front-rear"
+
+    ###########################################################
+
+    model = YOLO(model_name + ".pt")
+    project_path = os.path.join("trained_models", model_name, dataset)
+    data_config_file=os.path.join("data_config_files", dataset+".yaml") 
+
+    results = model.train(data=data_config_file, epochs=100, imgsz=640, project=project_path)
     results = model.val()
     results = model.export()
 

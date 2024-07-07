@@ -7,22 +7,31 @@ import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
 
-# Load the pre-trained YOLO model
-# Replace 'best.pt' with the path to your pre-trained YOLO model weights file
-#model = torch.hub.load('ultralytics/yolov5', 'custom', path='path/to/your/best.pt', source='local')
-model = YOLO(r'runs\\detect\\train4\\weights\\best.pt')
+###########################################################
 
-# Prepare the input image
-video_path = r'datasets\\raw_data\\videos\\epic_moments.mp4'  # Replace with the path to your input image
+model_name = "yolov10b"
+dataset = "car_front-rear"
+#input_video = r'datasets\\raw_data\\videos\\epic_moments.mp4'
+input_video = r'datasets\\raw_data\\videos\\2023_London_Highlights.mp4'
+
+confidence_threshold = 0.85
+
+###########################################################
+
+# Load the trained YOLO model
+trained_model = os.path.join("trained_models", model_name, dataset, "train", "weights", "best.pt")
+model = YOLO(trained_model)
 
 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-output_dir = os.path.join("detection_results", "videos", f"run_{timestamp}")
+output_dir = os.path.join("detection_results", "videos", model_name, dataset, f"run_{timestamp}")
 os.makedirs(output_dir, exist_ok=True)
 
-output_path = os.path.join(output_dir, "result.mp4")
+output_file = os.path.basename(input_video)
+output_path = os.path.join(output_dir, output_file)
+output_path = os.path.join(output_dir)
 
 # Open the video file
-cap = cv2.VideoCapture(video_path)
+cap = cv2.VideoCapture(input_video)
 
 # Get video details
 width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -61,7 +70,7 @@ while frame_count < frames_to_process:
         label = f"{class_name} {conf:.2f}"
 
         # Filter out low confidence matches
-        if conf >= 0.85:
+        if conf >= confidence_threshold:
 
             if class_name == "car_front":
                 bounding_box_color = (0, 0, 255)
