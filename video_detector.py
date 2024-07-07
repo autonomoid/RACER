@@ -9,10 +9,14 @@ from datetime import datetime
 
 ###########################################################
 
+#model_name = "yolov8n"
 model_name = "yolov10b"
+
+#dataset = "car"
 dataset = "car_front-rear"
-#input_video = r'datasets\\raw_data\\videos\\epic_moments.mp4'
-input_video = r'datasets\\raw_data\\videos\\2023_London_Highlights.mp4'
+
+input_video = r'datasets\\raw_data\\videos\\epic_moments.mp4'
+#input_video = r'datasets\\raw_data\\videos\\2023_London_Highlights.mp4'
 
 confidence_threshold = 0.85
 
@@ -28,7 +32,6 @@ os.makedirs(output_dir, exist_ok=True)
 
 output_file = os.path.basename(input_video)
 output_path = os.path.join(output_dir, output_file)
-output_path = os.path.join(output_dir)
 
 # Open the video file
 cap = cv2.VideoCapture(input_video)

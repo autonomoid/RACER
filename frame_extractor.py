@@ -70,19 +70,19 @@ class VideoFrameExtractorApp:
         self.update_file_counts()
 
     def update_file_counts(self):
-        front_view_count = len(os.listdir("saved_frames/front_view"))
+        front_view_count = len(os.listdir("extracted_frames/front_view"))
         self.label_front_view_count.config(text=f"Front View: {front_view_count}")
 
-        rear_view_count = len(os.listdir("saved_frames/rear_view"))
+        rear_view_count = len(os.listdir("extracted_frames/rear_view"))
         self.label_rear_view_count.config(text=f"Rear View: {rear_view_count}")
 
-        left_view_count = len(os.listdir("saved_frames/left_view"))
+        left_view_count = len(os.listdir("extracted_frames/left_view"))
         self.label_left_view_count.config(text=f"Left View: {left_view_count}")
 
-        right_view_count = len(os.listdir("saved_frames/right_view"))
+        right_view_count = len(os.listdir("extracted_frames/right_view"))
         self.label_right_view_count.config(text=f"Right View: {right_view_count}")
 
-        top_view_count = len(os.listdir("saved_frames/top_view"))
+        top_view_count = len(os.listdir("extracted_frames/top_view"))
         self.label_top_view_count.config(text=f"Top View: {top_view_count}")
 
     def load_video(self, event=None):
@@ -123,22 +123,22 @@ class VideoFrameExtractorApp:
             self.update_frame_display()
 
     def save_frame(self, event=None):
-        self.save_frame_to_folder("saved_frames/mixed")
+        self.save_frame_to_folder("extracted_frames/mixed")
 
     def save_front_view(self, event=None):
-        self.save_frame_to_folder("saved_frames/front_view")
+        self.save_frame_to_folder("extracted_frames/front_view")
 
     def save_rear_view(self, event=None):
-        self.save_frame_to_folder("saved_frames/rear_view")
+        self.save_frame_to_folder("extracted_frames/rear_view")
 
     def save_left_view(self, event=None):
-        self.save_frame_to_folder("saved_frames/left_view")
+        self.save_frame_to_folder("extracted_frames/left_view")
 
     def save_right_view(self, event=None):
-        self.save_frame_to_folder("saved_frames/right_view")
+        self.save_frame_to_folder("extracted_frames/right_view")
 
     def save_top_view(self, event=None):
-        self.save_frame_to_folder("saved_frames/top_view")
+        self.save_frame_to_folder("extracted_frames/top_view")
 
     def save_frame_to_folder(self, folder_name):
         if self.current_frame:
