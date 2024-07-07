@@ -1,0 +1,6 @@
+path: ../datasets
+train: cars/train
+test: cars/test
+val: cars/val
+nc: 1
+names: ['car']
