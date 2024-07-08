@@ -9,7 +9,7 @@ source_dir = r'C:\\Users\\auton\\Downloads\\car_left\\obj_train_data'
 
 ###########################################################
 
-training_dir = os.path.join('datasets', dataset, 'training')
+training_dir = os.path.join('datasets', dataset, 'train')
 val_dir = os.path.join('datasets', dataset, 'val')
 
 # Define the subdirectories for images and labels
