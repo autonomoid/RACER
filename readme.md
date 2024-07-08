@@ -1,1 +1,1 @@
-RACER - Rapid Assembly of Critical Event for Replay
+RACER - Rapid Assembly of Critical Events for Replay
