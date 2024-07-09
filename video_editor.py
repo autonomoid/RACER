@@ -6,6 +6,7 @@ from PIL import Image, ImageTk
 import cv2
 import numpy as np
 from moviepy.editor import VideoFileClip
+from tkinter import messagebox
 
 class VideoEditorApp:
     def __init__(self, root):
@@ -15,6 +16,7 @@ class VideoEditorApp:
         # Define custom font
         self.custom_font = tkFont.Font(size=16)
         
+        # Initialize variables
         self.video_path = tk.StringVar(value=r"C:\\Users\\auton\\OneDrive\\Documents\\PycharmProjects\\RACER\\detection_results\\videos\\yolov8n\\car_front-rear\\run_20240707_212850\\yolov8n-car_front-rear-2023_London_Highlights.mp4")
         self.logo_path = tk.StringVar(value=r"C:\\Users\\auton\\OneDrive\\Pictures\\autonomoid.jpg")
         self.top_banner_color = tk.StringVar(value="77, 106, 0") #BGR  
@@ -81,96 +83,111 @@ class VideoEditorApp:
         
         tk.Button(control_frame, text="Process Video", command=self.process_video, font=self.custom_font).grid(row=13, column=1)
 
+        # Progress bar
+        self.progress = ttk.Progressbar(control_frame, orient="horizontal", length=300, mode="determinate")
+        self.progress.grid(row=14, column=0, columnspan=3, pady=10)
+
     def browse_video(self):
         path = filedialog.askopenfilename(filetypes=[("Video Files", "*.mp4 *.avi *.mov")])
-        self.video_path.set(path)
-        self.update_preview()
+        if path:
+            self.video_path.set(path)
+            self.update_preview()
 
     def browse_logo(self):
         path = filedialog.askopenfilename(filetypes=[("Image Files", "*.png *.jpg *.jpeg")])
-        self.logo_path.set(path)
-        self.update_preview()
+        if path:
+            self.logo_path.set(path)
+            self.update_preview()
 
     def update_preview(self, event=None):
         if not self.video_path.get():
             return
-        
-        clip = VideoFileClip(self.video_path.get())
-        frame = clip.get_frame(0)  # Get the first frame for preview
-        
-        frame = self.add_banners_and_logo(
-            frame, 
-            self.top_banner_height.get(), 
-            self.bottom_banner_height.get(), 
-            tuple(map(int, self.top_banner_color.get().split(','))), 
-            tuple(map(int, self.bottom_banner_color.get().split(','))), 
-            self.logo_path.get(), 
-            (self.logo_size.get(), self.logo_size.get()), 
-            self.scroll_text.get(), 
-            100, 
-            1  # Pass 1 to avoid scrolling in preview
-        )
-        
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        img = Image.fromarray(frame)
-        imgtk = ImageTk.PhotoImage(image=img)
-        self.preview_label.imgtk = imgtk
-        self.preview_label.config(image=imgtk)
-
-    def process_video(self):
-        video_path = self.video_path.get()
-        logo_path = self.logo_path.get()
-        top_banner_color = tuple(map(int, self.top_banner_color.get().split(',')))
-        bottom_banner_color = tuple(map(int, self.bottom_banner_color.get().split(',')))
-        transition_duration = self.transition_duration.get()
-        top_banner_height = self.top_banner_height.get()
-        bottom_banner_height = self.bottom_banner_height.get()
-        logo_size = (self.logo_size.get(), self.logo_size.get())
-        scroll_text = self.scroll_text.get()
-        
-        clip = VideoFileClip(video_path)
-        fps = clip.fps
-
-        total_frames = int(clip.duration * fps)
-        fade_frames = int(transition_duration * fps)
-        
-        output_frames = []
-        for i, t in enumerate(np.linspace(0, clip.duration, total_frames)):
-            frame = clip.get_frame(t)
+        try:
+            clip = VideoFileClip(self.video_path.get())
+            frame = clip.get_frame(0)  # Get the first frame for preview
             
-            # Apply fade-in
-            if i < fade_frames:
-                alpha = i / fade_frames
-                frame = (frame * alpha).astype(np.uint8)
-            
-            # Apply fade-out
-            if i >= total_frames - fade_frames:
-                alpha = (total_frames - i) / fade_frames
-                frame = (frame * alpha).astype(np.uint8)
-
             frame = self.add_banners_and_logo(
                 frame, 
-                top_banner_height, 
-                bottom_banner_height, 
-                top_banner_color, 
-                bottom_banner_color, 
-                logo_path, 
-                logo_size, 
-                scroll_text, 
-                i, 
-                total_frames
+                self.top_banner_height.get(), 
+                self.bottom_banner_height.get(), 
+                tuple(map(int, self.top_banner_color.get().split(','))), 
+                tuple(map(int, self.bottom_banner_color.get().split(','))), 
+                self.logo_path.get(), 
+                (self.logo_size.get(), self.logo_size.get()), 
+                self.scroll_text.get(), 
+                100, 
+                1  # Pass 1 to avoid scrolling in preview
             )
-            output_frames.append(frame)
-        
-        height, width, _ = output_frames[0].shape
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter("output_video.mp4", fourcc, fps, (width, height))
+            
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            img = Image.fromarray(frame)
+            imgtk = ImageTk.PhotoImage(image=img)
+            self.preview_label.imgtk = imgtk
+            self.preview_label.config(image=imgtk)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load video: {str(e)}")
 
-        for frame in output_frames:
-            out.write(frame)
+    def process_video(self):
+        try:
+            video_path = self.video_path.get()
+            logo_path = self.logo_path.get()
+            top_banner_color = tuple(map(int, self.top_banner_color.get().split(',')))
+            bottom_banner_color = tuple(map(int, self.bottom_banner_color.get().split(',')))
+            transition_duration = self.transition_duration.get()
+            top_banner_height = self.top_banner_height.get()
+            bottom_banner_height = self.bottom_banner_height.get()
+            logo_size = (self.logo_size.get(), self.logo_size.get())
+            scroll_text = self.scroll_text.get()
+            
+            clip = VideoFileClip(video_path)
+            fps = clip.fps
 
-        out.release()
-        print("Video processing completed.")
+            total_frames = int(clip.duration * fps)
+            fade_frames = int(transition_duration * fps)
+            
+            output_frames = []
+            for i, t in enumerate(np.linspace(0, clip.duration, total_frames)):
+                frame = clip.get_frame(t)
+                
+                # Apply fade-in
+                if i < fade_frames:
+                    alpha = i / fade_frames
+                    frame = (frame * alpha).astype(np.uint8)
+                
+                # Apply fade-out
+                if i >= total_frames - fade_frames:
+                    alpha = (total_frames - i) / fade_frames
+                    frame = (frame * alpha).astype(np.uint8)
+
+                frame = self.add_banners_and_logo(
+                    frame, 
+                    top_banner_height, 
+                    bottom_banner_height, 
+                    top_banner_color, 
+                    bottom_banner_color, 
+                    logo_path, 
+                    logo_size, 
+                    scroll_text, 
+                    i, 
+                    total_frames
+                )
+                output_frames.append(frame)
+                
+                # Update progress bar
+                self.progress['value'] = (i / total_frames) * 100
+                self.root.update_idletasks()
+            
+            height, width, _ = output_frames[0].shape
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            out = cv2.VideoWriter("output_video.mp4", fourcc, fps, (width, height))
+
+            for frame in output_frames:
+                out.write(frame)
+
+            out.release()
+            messagebox.showinfo("Success", "Video processing completed successfully!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to process video: {str(e)}")
 
     def add_banners_and_logo(self, frame, top_banner_height, bottom_banner_height, top_banner_color, bottom_banner_color, logo_path, logo_size, scroll_text, frame_idx, total_frames):
         h, w, _ = frame.shape
@@ -187,24 +204,28 @@ class VideoEditorApp:
 
         # Add logo
         if logo_path:
-            logo = cv2.imread(logo_path, cv2.IMREAD_UNCHANGED)
-            logo = cv2.resize(logo, logo_size)
-            logo_h, logo_w, logo_c = logo.shape
+            try:
+                logo = cv2.imread(logo_path, cv2.IMREAD_UNCHANGED)
+                if logo is not None:
+                    logo = cv2.resize(logo, logo_size)
+                    logo_h, logo_w, logo_c = logo.shape
 
-            logo_x = int(self.logo_position_x.get() / 100 * w)
-            logo_y = int(self.logo_position_y.get() / 100 * h)
+                    logo_x = int(self.logo_position_x.get() / 100 * w)
+                    logo_y = int(self.logo_position_y.get() / 100 * h)
 
-            if logo_c == 4:
-                # If logo has alpha channel
-                alpha_logo = logo[:, :, 3] / 255.0
-                alpha_frame = 1.0 - alpha_logo
+                    if logo_c == 4:
+                        # If logo has alpha channel
+                        alpha_logo = logo[:, :, 3] / 255.0
+                        alpha_frame = 1.0 - alpha_logo
 
-                for c in range(0, 3):
-                    frame[logo_y:logo_y+logo_h, logo_x:logo_x+logo_w, c] = (alpha_logo * logo[:, :, c] +
-                                                            alpha_frame * frame[logo_y:logo_y+logo_h, logo_x:logo_x+logo_w, c])
-            else:
-                # If logo does not have alpha channel
-                frame[logo_y:logo_y+logo_h, logo_x:logo_x+logo_w] = logo
+                        for c in range(0, 3):
+                            frame[logo_y:logo_y+logo_h, logo_x:logo_x+logo_w, c] = (alpha_logo * logo[:, :, c] +
+                                                                alpha_frame * frame[logo_y:logo_y+logo_h, logo_x:logo_x+logo_w, c])
+                    else:
+                        # If logo does not have alpha channel
+                        frame[logo_y:logo_y+logo_h, logo_x:logo_x+logo_w] = logo
+            except Exception as e:
+                print(f"Failed to load logo: {str(e)}")
 
         # Add scrolling text
         font_scale = 1
