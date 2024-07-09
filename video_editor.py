@@ -19,8 +19,8 @@ class VideoEditorApp:
         # Initialize variables
         self.video_path = tk.StringVar(value=r"C:\\Users\\auton\\OneDrive\\Documents\\PycharmProjects\\RACER\\detection_results\\videos\\yolov8n\\car_front-rear\\run_20240707_212850\\yolov8n-car_front-rear-2023_London_Highlights.mp4")
         self.logo_path = tk.StringVar(value=r"C:\\Users\\auton\\OneDrive\\Pictures\\autonomoid.jpg")
-        self.top_banner_color = tk.StringVar(value="77, 106, 0") #BGR  
-        self.bottom_banner_color = tk.StringVar(value="77, 106, 0") #BGR
+        self.top_banner_color = tk.StringVar(value="0, 106, 77") #BGR  
+        self.bottom_banner_color = tk.StringVar(value="0, 106, 77") #BGR
         self.transition_duration = tk.DoubleVar(value=1.0)
         self.top_banner_height = tk.IntVar(value=50)
         self.bottom_banner_height = tk.IntVar(value=50)
@@ -119,7 +119,7 @@ class VideoEditorApp:
                 1  # Pass 1 to avoid scrolling in preview
             )
             
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            #frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(frame)
             imgtk = ImageTk.PhotoImage(image=img)
             self.preview_label.imgtk = imgtk
@@ -206,12 +206,13 @@ class VideoEditorApp:
         if logo_path:
             try:
                 logo = cv2.imread(logo_path, cv2.IMREAD_UNCHANGED)
+                logo = cv2.cvtColor(logo, cv2.COLOR_BGR2RGB)
                 if logo is not None:
                     logo = cv2.resize(logo, logo_size)
                     logo_h, logo_w, logo_c = logo.shape
 
                     logo_x = int(self.logo_position_x.get() / 100 * w)
-                    logo_y = int(self.logo_position_y.get() / 100 * h)
+                    logo_y = int(self.logo_position_y.get() / 100 * (h + top_banner_height + bottom_banner_height))
 
                     if logo_c == 4:
                         # If logo has alpha channel
