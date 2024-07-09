@@ -7,16 +7,16 @@ import cv2
 import numpy as np
 from moviepy.editor import VideoFileClip
 from tkinter import messagebox
-import os
-import tempfile
 import threading
+import time
 
 class VideoEditorApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Video Editor")
         self.processing = False
-        self.cancel_processing = False
+        self.previewing = False
+        self.cancel_preview = False
         self.temp_files = []
         self.processed_file_path = None
 
@@ -116,7 +116,7 @@ class VideoEditorApp:
         self.process_button.grid(row=13, column=1)
         self.preview_button = tk.Button(control_frame, text="Preview", command=self.preview_video, font=self.custom_font, state=tk.DISABLED)
         self.preview_button.grid(row=13, column=2)
-        self.cancel_button = tk.Button(control_frame, text="Cancel", command=self.cancel_processing, font=self.custom_font, state=tk.DISABLED)
+        self.cancel_button = tk.Button(control_frame, text="Cancel", command=self.cancel_preview, font=self.custom_font, state=tk.DISABLED)
         self.cancel_button.grid(row=13, column=3)
 
         # Progress bar and percentage label
@@ -132,6 +132,7 @@ class VideoEditorApp:
         try:
             clip = VideoFileClip(self.video_path.get())
             frame = clip.get_frame(0)  # Get the first frame for preview
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             
             frame = self.add_banners_and_logo(
                 frame, 
@@ -172,7 +173,7 @@ class VideoEditorApp:
         try:
             clip = VideoFileClip(self.video_path.get())
             frame = clip.get_frame(0)  # Get the first frame for preview
-            
+                        
             frame = self.add_banners_and_logo(
                 frame, 
                 self.top_banner_height.get(), 
@@ -196,13 +197,21 @@ class VideoEditorApp:
         self.update_slider_labels()
 
     def preview_video(self):
-        if self.processed_file_path:
-            try:
+        if self.previewing:
+            return
+        self.previewing = True
+        self.preview_button.config(state=tk.DISABLED)
+        self.cancel_button.config(state=tk.NORMAL)
+        threading.Thread(target=self._preview_video_thread).start()
+
+    def _preview_video_thread(self):
+        try:
+            if self.processed_file_path:
                 clip = VideoFileClip(self.processed_file_path)
                 fps = clip.fps
-                total_frames = int(clip.duration * fps)
+                frame_duration = 1.0 / fps
                 
-                for i, t in enumerate(np.linspace(0, clip.duration, total_frames)):
+                for t in np.arange(0, clip.duration, frame_duration):
                     if self.cancel_processing:
                         break
                     frame = clip.get_frame(t)
@@ -211,16 +220,20 @@ class VideoEditorApp:
                     self.preview_label.imgtk = imgtk
                     self.preview_label.config(image=imgtk)
                     self.root.update_idletasks()
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to play processed video: {str(e)}")
-        else:
-            messagebox.showinfo("Info", "No processed video available. Please process the video first.")
-
+                    time.sleep(frame_duration)
+            else:
+                messagebox.showinfo("Info", "No processed video available. Please process the video first.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to play processed video: {str(e)}")
+        finally:
+            self.previewing = False
+            self.preview_button.config(state=tk.NORMAL)
 
     def process_video(self):
         if self.processing:
             return
         self.processing = True
+        self.preview_button.config(state=tk.DISABLED)
         threading.Thread(target=self._process_video_thread).start()
 
     def _process_video_thread(self):
@@ -244,7 +257,7 @@ class VideoEditorApp:
             
             output_frames = []
             for i, t in enumerate(np.linspace(0, clip.duration, total_frames)):
-                if self.cancel_processing:
+                if self.cancel_preview:
                     break
                 frame = clip.get_frame(t)
                 
@@ -278,7 +291,7 @@ class VideoEditorApp:
                 self.progress_label.config(text=f"{int(progress_value)}%")
                 self.root.update_idletasks()
             
-            if not self.cancel_processing:
+            if not self.cancel_preview:
                 height, width, _ = output_frames[0].shape
                 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
                 self.processed_file_path = "output_video.mp4"
@@ -286,8 +299,8 @@ class VideoEditorApp:
 
                 for frame in output_frames:
                     # Convert frame from RGB to BGR for VideoWriter
-                    frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-                    out.write(frame_bgr)
+                    #frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                    out.write(frame)
 
                 out.release()
                 self.temp_files.append(self.processed_file_path)
@@ -298,9 +311,9 @@ class VideoEditorApp:
         finally:
             self.enable_controls()
             self.processing = False
-            if self.cancel_processing:
+            if self.cancel_preview:
                 self.cleanup_temp_files()
-                self.cancel_processing = False
+                self.cancel_preview = False
 
     def add_banners_and_logo(self, frame, top_banner_height, bottom_banner_height, top_banner_color, bottom_banner_color, logo_path, logo_size, scroll_text, frame_idx, total_frames):
         h, w, _ = frame.shape
@@ -353,11 +366,7 @@ class VideoEditorApp:
 
         cv2.putText(frame, scroll_text, (text_x, text_y), font, font_scale, (255, 255, 255), font_thickness, cv2.LINE_AA)
 
-        # Convert frame from BGR to RGB
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
         return frame
-
 
     def update_slider_labels(self):
         self.banner_position_label.config(text=str(self.banner_position.get()))
@@ -403,8 +412,8 @@ class VideoEditorApp:
         self.process_button.config(state=tk.NORMAL)
         self.cancel_button.config(state=tk.DISABLED)
 
-    def cancel_processing(self):
-        self.cancel_processing = True
+    def cancel_preview(self):
+        self.cancel_preview = True
 
     def cleanup_temp_files(self):
         for temp_file in self.temp_files:
