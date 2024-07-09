@@ -107,7 +107,7 @@ class VideoEditorApp:
             self.logo_path.get(), 
             (self.logo_size.get(), self.logo_size.get()), 
             self.scroll_text.get(), 
-            0, 
+            100, 
             1  # Pass 1 to avoid scrolling in preview
         )
         
@@ -212,7 +212,7 @@ class VideoEditorApp:
         font = cv2.FONT_HERSHEY_SIMPLEX
         text_size = cv2.getTextSize(scroll_text, font, font_scale, font_thickness)[0]
         text_x = w - (frame_idx % (w + text_size[0]))
-        text_y = h + bottom_banner_height - int(self.scroll_position_y.get() / 100 * bottom_banner_height)  # Adjust the text position vertically
+        text_y = h + bottom_banner_height + int(self.scroll_position_y.get() / 100 * bottom_banner_height)  # Adjust the text position vertically
 
         cv2.putText(frame, scroll_text, (text_x, text_y), font, font_scale, (255, 255, 255), font_thickness, cv2.LINE_AA)
 
