@@ -1,0 +1,76 @@
+<!doctype html>
+<html>
+<head>
+    <title>Video Editor</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row">
+            <div class="col-md-8 offset-md-2">
+                <h1 class="text-center">Video Editor</h1>
+                <div class="mt-4">
+                    <video id="videoPreview" controls style="width: 100%;">
+                        <source id="videoSource" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+                <form id="uploadForm" enctype="multipart/form-data" class="mt-4">
+                    <div class="form-group">
+                        <input type="file" class="form-control-file" id="file" name="file" accept="video/*">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Process Video</button>
+                </form>
+                <div class="mt-4">
+                    <div class="progress">
+                        <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                    </div>
+                    <p id="statusMessage"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        $(document).ready(function(){
+            var socket = io();
+
+            $('#uploadForm').on('submit', function(e){
+                e.preventDefault();
+                var formData = new FormData(this);
+                $.ajax({
+                    url: '/upload',
+                    type: 'POST',
+                    data: formData,
+                    success: function(response){
+                        console.log('Upload successful');
+                    },
+                    cache: false,
+                    contentType: false,
+                    processData: false
+                });
+            });
+
+            socket.on('progress', function(data){
+                $('#progressBar').css('width', data.progress + '%').attr('aria-valuenow', data.progress).text(data.progress + '%');
+            });
+
+            socket.on('status', function(data){
+                $('#statusMessage').text(data.message);
+            });
+
+            socket.on('processing_done', function(data){
+                $('#videoSource').attr('src', '/preview/' + data.filename);
+                $('#videoPreview').get(0).load();
+                setTimeout(function() {
+                    $('#videoPreview').get(0).play();
+                }, 500);
+            });
+        });
+    </script>
+</body>
+</html>
