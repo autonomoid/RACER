@@ -1,11 +1,10 @@
-from flask import Flask, request, render_template, send_from_directory, redirect, jsonify
+from flask import Flask, request, render_template, send_from_directory, jsonify
 from flask_socketio import SocketIO, emit
 from moviepy.editor import VideoFileClip
 import cv2
 import numpy as np
 import os
 import threading
-
 import imageio
 
 app = Flask(__name__)
@@ -28,10 +27,10 @@ def index():
 @app.route('/upload', methods=['POST'])
 def upload_file():
     if 'file' not in request.files:
-        return redirect(request.url)
+        return jsonify({'status': 'error', 'message': 'No file part'})
     file = request.files['file']
     if file.filename == '':
-        return redirect(request.url)
+        return jsonify({'status': 'error', 'message': 'No selected file'})
     if file:
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
         file.save(filepath)
@@ -44,37 +43,39 @@ def preview_video(filename):
     return send_from_directory(app.config['PROCESSED_FOLDER'], filename, mimetype='video/mp4')
 
 def process_video(filepath):
-    socketio.emit('status', {'message': 'Processing frames...'})
+    try:
+        socketio.emit('status', {'message': 'Processing frames...'})
 
-    clip = VideoFileClip(filepath)
-    fps = clip.fps
-    duration = clip.duration
-    total_frames = int(duration * fps)
-    frames = []
+        clip = VideoFileClip(filepath)
+        fps = clip.fps
+        duration = clip.duration
+        total_frames = int(duration * fps)
+        frames = []
 
-    for frame_idx, t in enumerate(np.arange(0, duration, 1/fps)):
-        frame = clip.get_frame(t)
-        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        frame = add_banners_and_logo(frame, frame_idx)
-        frames.append(frame)
-        progress = int((frame_idx / total_frames) * 100)
-        socketio.emit('progress', {'progress': progress})
+        for frame_idx, t in enumerate(np.arange(0, duration, 1/fps)):
+            frame = clip.get_frame(t)
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            frame = add_banners_and_logo(frame, frame_idx)
+            frames.append(frame)
+            progress = int((frame_idx / total_frames) * 100)
+            socketio.emit('progress', {'progress': progress})
 
-    socketio.emit('status', {'message': 'Saving video...'})
+        socketio.emit('status', {'message': 'Saving video...'})
 
-    output_filename = 'output_video.mp4'
-    output_path = os.path.join(app.config['PROCESSED_FOLDER'], output_filename)
-    
-    out = imageio.get_writer(uri=output_path, fps=fps, codec='libx264', format='mp4')
+        output_filename = 'output_video.mp4'
+        output_path = os.path.join(app.config['PROCESSED_FOLDER'], output_filename)
+        
+        out = imageio.get_writer(uri=output_path, fps=fps, codec='libx264', format='mp4')
 
-    for frame in frames:
-        out.append_data(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        for frame in frames:
+            out.append_data(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
-    out.close()
-    socketio.emit('progress', {'progress': 100})
-    socketio.emit('status', {'message': 'Processing complete.'})
-    socketio.emit('processing_done', {'filename': output_filename})
-
+        out.close()
+        socketio.emit('progress', {'progress': 100})
+        socketio.emit('status', {'message': 'Processing complete.'})
+        socketio.emit('processing_done', {'filename': output_filename})
+    except Exception as e:
+        socketio.emit('status', {'message': f'Error during processing: {str(e)}'})
 
 def add_banners_and_logo(frame, frame_idx):
     top_banner_height = 50
@@ -119,14 +120,14 @@ def add_banners_and_logo(frame, frame_idx):
     
     # Adjust scrolling speed for preview
     scroll_speed = 5
-    horizontal_shoft = (scroll_speed * frame_idx) % (w + text_size[0])
+    horizontal_shift = (scroll_speed * frame_idx) % (w + text_size[0])
    
-    text_x = int(w - horizontal_shoft)
-    text_y = int(h + 1.75*bottom_banner_height) # Adjust the text position vertically
+    text_x = int(w - horizontal_shift)
+    text_y = int(h + 1.75 * bottom_banner_height) # Adjust the text position vertically
 
     cv2.putText(frame, "Rootkit Racers", (text_x, text_y), font, font_scale, (255, 255, 255), font_thickness, cv2.LINE_AA)
 
     return frame
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=True)
+    socketio.run(app, host='0.0.0.0', port=8080, debug=True)

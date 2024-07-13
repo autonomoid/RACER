@@ -47,7 +47,14 @@
                     type: 'POST',
                     data: formData,
                     success: function(response){
-                        console.log('Upload successful');
+                        if(response.status === 'processing') {
+                            $('#statusMessage').text('File uploaded successfully. Processing...');
+                        } else {
+                            $('#statusMessage').text('Error uploading file');
+                        }
+                    },
+                    error: function() {
+                        $('#statusMessage').text('Error uploading file');
                     },
                     cache: false,
                     contentType: false,
