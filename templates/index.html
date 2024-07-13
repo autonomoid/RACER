@@ -6,6 +6,11 @@
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        .progress-bar-complete {
+            background-color: #28a745 !important; /* Green color */
+        }
+    </style>
 </head>
 <body>
     <div class="container mt-5">
@@ -41,7 +46,7 @@
                         <label for="logoFile">Upload Logo</label>
                         <input type="file" class="form-control-file" id="logoFile" name="logoFile" accept="image/*">
                     </div>
-                    <button type="submit" class="btn btn-secondary btn-block">Apply Settings</button>
+                    <button type="submit" id="previewButton" class="btn btn-secondary btn-block" disabled>Preview</button>
                 </form>
             </div>
             <div class="col-md-8">
@@ -64,16 +69,16 @@
                     <div class="form-group">
                         <input type="file" class="form-control-file" id="file" name="file" accept="video/*">
                     </div>
-                    <button type="submit" class="btn btn-primary btn-block">Process Video</button>
+                    <div class="d-flex">
+                        <button type="submit" class="btn btn-primary mr-2">Process Video</button>
+                        <a id="downloadButton" class="btn btn-success disabled" disabled>Download Video</a>
+                    </div>
                 </form>
                 <div class="mt-4">
                     <div class="progress">
                         <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
                     </div>
                     <p id="statusMessage"></p>
-                </div>
-                <div class="mt-4" id="downloadContainer" style="display: none;">
-                    <a id="downloadButton" class="btn btn-success btn-block">Download Processed Video</a>
                 </div>
             </div>
         </div>
@@ -84,6 +89,14 @@
         $(document).ready(function(){
             var socket = io();
             var processedVideoAvailable = false;
+
+            $('#file').on('change', function() {
+                if ($(this).val()) {
+                    $('#previewButton').removeAttr('disabled');
+                } else {
+                    $('#previewButton').attr('disabled', 'disabled');
+                }
+            });
 
             $('#uploadForm').on('submit', function(e){
                 e.preventDefault();
@@ -118,6 +131,9 @@
                     success: function(response){
                         $('#statusMessage').text('Settings updated');
                         updatePreview();
+                        $('#imagePreviewContainer').show();
+                        $('#videoPreviewContainer').hide();
+                        $('#togglePreview').text('Show Processed Video');
                     },
                     error: function() {
                         $('#statusMessage').text('Error updating settings');
@@ -140,6 +156,10 @@
             });
 
             $('#togglePreview').on('click', function() {
+                togglePreview();
+            });
+
+            function togglePreview() {
                 if ($('#imagePreviewContainer').is(':visible')) {
                     $('#imagePreviewContainer').hide();
                     $('#videoPreviewContainer').show();
@@ -149,7 +169,7 @@
                     $('#videoPreviewContainer').hide();
                     $('#togglePreview').text('Show Processed Video');
                 }
-            });
+            }
 
             function updatePreview() {
                 var formData = new FormData($('#settingsForm')[0]);
@@ -172,6 +192,9 @@
 
             socket.on('progress', function(data){
                 $('#progressBar').css('width', data.progress + '%').attr('aria-valuenow', data.progress).text(data.progress + '%');
+                if (data.progress === 100) {
+                    $('#progressBar').addClass('progress-bar-complete');
+                }
             });
 
             socket.on('status', function(data){
@@ -185,16 +208,17 @@
                 setTimeout(function() {
                     $('#videoPreview').get(0).play();
                 }, 500);
+                $('#downloadButton').attr('href', '/download/' + data.filename);
+                $('#downloadButton').removeClass('disabled');
+                $('#downloadButton').removeAttr('disabled');
                 $('#imagePreviewContainer').hide();
                 $('#videoPreviewContainer').show();
                 $('#togglePreview').text('Show Image Preview');
-                $('#downloadContainer').show();
-                $('#downloadButton').attr('href', '/download/' + data.filename);
             });
 
             $('#downloadButton').on('click', function(){
-                if (processedVideoAvailable) {
-                    window.location.href = $(this).attr('href');
+                if (!processedVideoAvailable) {
+                    return false;  // prevent default action if video is not ready
                 }
             });
         });
