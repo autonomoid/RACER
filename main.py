@@ -82,12 +82,17 @@ def preview_video(filename):
     logging.info(f'Function: {preview_video.__name__} at line {preview_video.__code__.co_firstlineno}')
     return send_from_directory(app.config['PROCESSED_FOLDER'], filename, mimetype='video/mp4')
 
+@app.route('/download/<filename>')
+def download_video(filename):
+    logging.info(f'Function: {download_video.__name__} at line {download_video.__code__.co_firstlineno}')
+    return send_from_directory(app.config['PROCESSED_FOLDER'], filename, as_attachment=True)
+
 def save_settings(form, files):
     settings = {
         'logo_x': form.get('logoX', default=10, type=int),
         'logo_y': form.get('logoY', default=10, type=int),
-        'top_banner_color': form.get('topBannerColor', default='#4d6a00'),
-        'bottom_banner_color': form.get('bottomBannerColor', default='#4d6a00'),
+        'top_banner_color': form.get('topBannerColor', default='#006a4d'),
+        'bottom_banner_color': form.get('bottomBannerColor', default='#006a4d'),
         'scrolling_text': form.get('scrollingText', default='Rootkit Racers'),
     }
     logo_file = files.get('logoFile')
@@ -108,8 +113,8 @@ def load_settings():
         settings = {
             'logo_x': 10,
             'logo_y': 10,
-            'top_banner_color': '#4d6a00',
-            'bottom_banner_color': '#4d6a00',
+            'top_banner_color': '#006a4d',
+            'bottom_banner_color': '#006a4d',
             'logo_path': 'logo.jpg',
             'scrolling_text': 'Rootkit Racers'
         }
@@ -153,7 +158,6 @@ def process_video(filepath):
     except Exception as e:
         logging.error(f'Error during processing: {str(e)} at line {process_video.__code__.co_firstlineno + e.__traceback__.tb_lineno}')
         socketio.emit('status', {'message': f'Error during processing: {str(e)}'})
-
 
 def hex_to_bgr(hex_color):
     # Remove the '#' character if present
