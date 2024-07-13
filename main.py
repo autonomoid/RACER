@@ -54,38 +54,14 @@ def upload_file():
 @app.route('/settings', methods=['POST'])
 def update_settings():
     logging.info(f'Function: {update_settings.__name__} at line {update_settings.__code__.co_firstlineno}')
-    settings = {
-        'logo_x': request.form.get('logoX', default=10, type=int),
-        'logo_y': request.form.get('logoY', default=10, type=int),
-        'top_banner_color': request.form.get('topBannerColor', default='#4d6a00'),
-        'bottom_banner_color': request.form.get('bottomBannerColor', default='#4d6a00'),
-        'scrolling_text': request.form.get('scrollingText', default='Rootkit Racers'),
-    }
-    logo_file = request.files.get('logoFile')
-    if logo_file:
-        logo_filepath = os.path.join(app.config['SETTINGS_FOLDER'], 'logo.jpg')
-        logo_file.save(logo_filepath)
-        settings['logo_path'] = logo_filepath
-    settings_path = os.path.join(app.config['SETTINGS_FOLDER'], 'settings.json')
-    with open(settings_path, 'w') as f:
-        json.dump(settings, f)
+    save_settings(request.form, request.files)
     return jsonify({'status': 'success'})
 
 @app.route('/preview', methods=['POST'])
 def generate_preview():
     logging.info(f'Function: {generate_preview.__name__} at line {generate_preview.__code__.co_firstlineno}')
-    settings = {
-        'logo_x': request.form.get('logoX', default=10, type=int),
-        'logo_y': request.form.get('logoY', default=10, type=int),
-        'top_banner_color': request.form.get('topBannerColor', default='#4d6a00'),
-        'bottom_banner_color': request.form.get('bottomBannerColor', default='#4d6a00'),
-        'scrolling_text': request.form.get('scrollingText', default='Rootkit Racers'),
-    }
-    logo_file = request.files.get('logoFile')
-    if logo_file:
-        logo_filepath = os.path.join(app.config['SETTINGS_FOLDER'], 'logo.jpg')
-        logo_file.save(logo_filepath)
-        settings['logo_path'] = logo_filepath
+    save_settings(request.form, request.files)
+    settings = load_settings()
 
     # Use the first frame of the first video in the upload folder
     files = os.listdir(app.config['UPLOAD_FOLDER'])
@@ -105,6 +81,39 @@ def preview_video(filename):
     logging.info(f'Function: {preview_video.__name__} at line {preview_video.__code__.co_firstlineno}')
     return send_from_directory(app.config['PROCESSED_FOLDER'], filename, mimetype='video/mp4')
 
+def save_settings(form, files):
+    settings = {
+        'logo_x': form.get('logoX', default=10, type=int),
+        'logo_y': form.get('logoY', default=10, type=int),
+        'top_banner_color': form.get('topBannerColor', default='#4d6a00'),
+        'bottom_banner_color': form.get('bottomBannerColor', default='#4d6a00'),
+        'scrolling_text': form.get('scrollingText', default='Rootkit Racers'),
+    }
+    logo_file = files.get('logoFile')
+    if logo_file:
+        logo_filepath = os.path.join(app.config['SETTINGS_FOLDER'], 'logo.jpg')
+        logo_file.save(logo_filepath)
+        settings['logo_path'] = logo_filepath
+    settings_path = os.path.join(app.config['SETTINGS_FOLDER'], 'settings.json')
+    with open(settings_path, 'w') as f:
+        json.dump(settings, f)
+
+def load_settings():
+    settings_path = os.path.join(app.config['SETTINGS_FOLDER'], 'settings.json')
+    if os.path.exists(settings_path):
+        with open(settings_path, 'r') as f:
+            settings = json.load(f)
+    else:
+        settings = {
+            'logo_x': 10,
+            'logo_y': 10,
+            'top_banner_color': '#4d6a00',
+            'bottom_banner_color': '#4d6a00',
+            'logo_path': 'logo.jpg',
+            'scrolling_text': 'Rootkit Racers'
+        }
+    return settings
+
 def process_video(filepath):
     logging.info(f'Function: {process_video.__name__} at line {process_video.__code__.co_firstlineno}')
     try:
@@ -116,19 +125,7 @@ def process_video(filepath):
         total_frames = int(duration * fps)
         frames = []
 
-        settings_path = os.path.join(app.config['SETTINGS_FOLDER'], 'settings.json')
-        if os.path.exists(settings_path):
-            with open(settings_path, 'r') as f:
-                settings = json.load(f)
-        else:
-            settings = {
-                'logo_x': 10,
-                'logo_y': 10,
-                'top_banner_color': '#4d6a00',
-                'bottom_banner_color': '#4d6a00',
-                'logo_path': 'default_logo.jpg',
-                'scrolling_text': 'Rootkit Racers'
-            }
+        settings = load_settings()
 
         for frame_idx, t in enumerate(np.arange(0, duration, 1/fps)):
             frame = clip.get_frame(t)
@@ -142,7 +139,7 @@ def process_video(filepath):
 
         output_filename = 'output_video.mp4'
         output_path = os.path.join(app.config['PROCESSED_FOLDER'], output_filename)
-        
+
         out = imageio.get_writer(uri=output_path, fps=fps, codec='libx264', format='mp4')
 
         for frame in frames:
@@ -156,26 +153,13 @@ def process_video(filepath):
         logging.error(f'Error during processing: {str(e)} at line {process_video.__code__.co_firstlineno + e.__traceback__.tb_lineno}')
         socketio.emit('status', {'message': f'Error during processing: {str(e)}'})
 
-def hex_to_bgr(hex_color):
-    # Remove the '#' character if present
-    hex_color = hex_color.lstrip('#')
-    
-    # Extract RGB components
-    r = int(hex_color[0:2], 16)
-    g = int(hex_color[2:4], 16)
-    b = int(hex_color[4:6], 16)
-    
-    # Return BGR tuple
-    return (b, g, r)
-
 def add_banners_and_logo(frame, frame_idx, settings):
     logging.info(f'Function: {add_banners_and_logo.__name__} at line {add_banners_and_logo.__code__.co_firstlineno}')
     top_banner_height = 50
     bottom_banner_height = 50
-
-    top_banner_color = hex_to_bgr(settings['top_banner_color'])
-    bottom_banner_color = hex_to_bgr(settings['bottom_banner_color'])
-    logo_path = settings.get('logo_path', 'default_logo.jpg')
+    top_banner_color = tuple(int(settings['top_banner_color'].lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+    bottom_banner_color = tuple(int(settings['bottom_banner_color'].lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+    logo_path = settings.get('logo_path', 'logo.jpg')
     logo_size = (50, 50)
 
     h, w, _ = frame.shape
@@ -210,11 +194,11 @@ def add_banners_and_logo(frame, frame_idx, settings):
     font_thickness = 2
     font = cv2.FONT_HERSHEY_SIMPLEX
     text_size = cv2.getTextSize(settings.get('scrolling_text', 'Rootkit Racers'), font, font_scale, font_thickness)[0]
-    
+
     # Adjust scrolling speed for preview
     scroll_speed = 5
     horizontal_shift = (scroll_speed * frame_idx) % (w + text_size[0])
-   
+
     text_x = int(w - horizontal_shift)
     text_y = int(h + 1.75 * bottom_banner_height) # Adjust the text position vertically
 
