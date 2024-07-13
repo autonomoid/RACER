@@ -6,13 +6,18 @@ import numpy as np
 import os
 import threading
 import imageio
+import logging
+import json
+import base64
 
 app = Flask(__name__)
 socketio = SocketIO(app)
 UPLOAD_FOLDER = 'uploads'
 PROCESSED_FOLDER = 'processed'
+SETTINGS_FOLDER = 'settings'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['PROCESSED_FOLDER'] = PROCESSED_FOLDER
+app.config['SETTINGS_FOLDER'] = SETTINGS_FOLDER
 
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
@@ -20,12 +25,20 @@ if not os.path.exists(UPLOAD_FOLDER):
 if not os.path.exists(PROCESSED_FOLDER):
     os.makedirs(PROCESSED_FOLDER)
 
+if not os.path.exists(SETTINGS_FOLDER):
+    os.makedirs(SETTINGS_FOLDER)
+
+# Setup logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
+
 @app.route('/')
 def index():
+    logging.info(f'Function: {index.__name__} at line {index.__code__.co_firstlineno}')
     return render_template('index.html')
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
+    logging.info(f'Function: {upload_file.__name__} at line {upload_file.__code__.co_firstlineno}')
     if 'file' not in request.files:
         return jsonify({'status': 'error', 'message': 'No file part'})
     file = request.files['file']
@@ -38,11 +51,62 @@ def upload_file():
         thread.start()
         return jsonify({'status': 'processing'})
 
+@app.route('/settings', methods=['POST'])
+def update_settings():
+    logging.info(f'Function: {update_settings.__name__} at line {update_settings.__code__.co_firstlineno}')
+    settings = {
+        'logo_x': request.form.get('logoX', default=10, type=int),
+        'logo_y': request.form.get('logoY', default=10, type=int),
+        'top_banner_color': request.form.get('topBannerColor', default='#4d6a00'),
+        'bottom_banner_color': request.form.get('bottomBannerColor', default='#4d6a00'),
+        'scrolling_text': request.form.get('scrollingText', default='Rootkit Racers'),
+    }
+    logo_file = request.files.get('logoFile')
+    if logo_file:
+        logo_filepath = os.path.join(app.config['SETTINGS_FOLDER'], 'logo.jpg')
+        logo_file.save(logo_filepath)
+        settings['logo_path'] = logo_filepath
+    settings_path = os.path.join(app.config['SETTINGS_FOLDER'], 'settings.json')
+    with open(settings_path, 'w') as f:
+        json.dump(settings, f)
+    return jsonify({'status': 'success'})
+
+@app.route('/preview', methods=['POST'])
+def generate_preview():
+    logging.info(f'Function: {generate_preview.__name__} at line {generate_preview.__code__.co_firstlineno}')
+    settings = {
+        'logo_x': request.form.get('logoX', default=10, type=int),
+        'logo_y': request.form.get('logoY', default=10, type=int),
+        'top_banner_color': request.form.get('topBannerColor', default='#4d6a00'),
+        'bottom_banner_color': request.form.get('bottomBannerColor', default='#4d6a00'),
+        'scrolling_text': request.form.get('scrollingText', default='Rootkit Racers'),
+    }
+    logo_file = request.files.get('logoFile')
+    if logo_file:
+        logo_filepath = os.path.join(app.config['SETTINGS_FOLDER'], 'logo.jpg')
+        logo_file.save(logo_filepath)
+        settings['logo_path'] = logo_filepath
+
+    # Use the first frame of the first video in the upload folder
+    files = os.listdir(app.config['UPLOAD_FOLDER'])
+    if not files:
+        return jsonify({'status': 'error', 'message': 'No uploaded videos found'})
+    first_video = os.path.join(app.config['UPLOAD_FOLDER'], files[0])
+    clip = VideoFileClip(first_video)
+    frame = clip.get_frame(0)
+    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+    frame = add_banners_and_logo(frame, 0, settings)
+    _, buffer = cv2.imencode('.jpg', frame)
+    preview_image = base64.b64encode(buffer).decode('utf-8')
+    return jsonify({'status': 'success', 'image': preview_image})
+
 @app.route('/preview/<filename>')
 def preview_video(filename):
+    logging.info(f'Function: {preview_video.__name__} at line {preview_video.__code__.co_firstlineno}')
     return send_from_directory(app.config['PROCESSED_FOLDER'], filename, mimetype='video/mp4')
 
 def process_video(filepath):
+    logging.info(f'Function: {process_video.__name__} at line {process_video.__code__.co_firstlineno}')
     try:
         socketio.emit('status', {'message': 'Processing frames...'})
 
@@ -52,10 +116,24 @@ def process_video(filepath):
         total_frames = int(duration * fps)
         frames = []
 
+        settings_path = os.path.join(app.config['SETTINGS_FOLDER'], 'settings.json')
+        if os.path.exists(settings_path):
+            with open(settings_path, 'r') as f:
+                settings = json.load(f)
+        else:
+            settings = {
+                'logo_x': 10,
+                'logo_y': 10,
+                'top_banner_color': '#4d6a00',
+                'bottom_banner_color': '#4d6a00',
+                'logo_path': 'default_logo.jpg',
+                'scrolling_text': 'Rootkit Racers'
+            }
+
         for frame_idx, t in enumerate(np.arange(0, duration, 1/fps)):
             frame = clip.get_frame(t)
             frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-            frame = add_banners_and_logo(frame, frame_idx)
+            frame = add_banners_and_logo(frame, frame_idx, settings)
             frames.append(frame)
             progress = int((frame_idx / total_frames) * 100)
             socketio.emit('progress', {'progress': progress})
@@ -75,14 +153,29 @@ def process_video(filepath):
         socketio.emit('status', {'message': 'Processing complete.'})
         socketio.emit('processing_done', {'filename': output_filename})
     except Exception as e:
+        logging.error(f'Error during processing: {str(e)} at line {process_video.__code__.co_firstlineno + e.__traceback__.tb_lineno}')
         socketio.emit('status', {'message': f'Error during processing: {str(e)}'})
 
-def add_banners_and_logo(frame, frame_idx):
+def hex_to_bgr(hex_color):
+    # Remove the '#' character if present
+    hex_color = hex_color.lstrip('#')
+    
+    # Extract RGB components
+    r = int(hex_color[0:2], 16)
+    g = int(hex_color[2:4], 16)
+    b = int(hex_color[4:6], 16)
+    
+    # Return BGR tuple
+    return (b, g, r)
+
+def add_banners_and_logo(frame, frame_idx, settings):
+    logging.info(f'Function: {add_banners_and_logo.__name__} at line {add_banners_and_logo.__code__.co_firstlineno}')
     top_banner_height = 50
     bottom_banner_height = 50
-    top_banner_color = (77, 106, 0)
-    bottom_banner_color = (77, 106, 0)
-    logo_path = 'logo.jpg'
+
+    top_banner_color = hex_to_bgr(settings['top_banner_color'])
+    bottom_banner_color = hex_to_bgr(settings['bottom_banner_color'])
+    logo_path = settings.get('logo_path', 'default_logo.jpg')
     logo_size = (50, 50)
 
     h, w, _ = frame.shape
@@ -99,8 +192,8 @@ def add_banners_and_logo(frame, frame_idx):
         logo = cv2.resize(logo, logo_size)
         logo_h, logo_w, logo_c = logo.shape
 
-        logo_x = 10
-        logo_y = 10
+        logo_x = settings.get('logo_x', 10)
+        logo_y = settings.get('logo_y', 10)
 
         if logo_c == 4:
             alpha_logo = logo[:, :, 3] / 255.0
@@ -116,7 +209,7 @@ def add_banners_and_logo(frame, frame_idx):
     font_scale = 1
     font_thickness = 2
     font = cv2.FONT_HERSHEY_SIMPLEX
-    text_size = cv2.getTextSize("Rootkit Racers", font, font_scale, font_thickness)[0]
+    text_size = cv2.getTextSize(settings.get('scrolling_text', 'Rootkit Racers'), font, font_scale, font_thickness)[0]
     
     # Adjust scrolling speed for preview
     scroll_speed = 5
@@ -125,7 +218,7 @@ def add_banners_and_logo(frame, frame_idx):
     text_x = int(w - horizontal_shift)
     text_y = int(h + 1.75 * bottom_banner_height) # Adjust the text position vertically
 
-    cv2.putText(frame, "Rootkit Racers", (text_x, text_y), font, font_scale, (255, 255, 255), font_thickness, cv2.LINE_AA)
+    cv2.putText(frame, settings.get('scrolling_text', 'Rootkit Racers'), (text_x, text_y), font, font_scale, (255, 255, 255), font_thickness, cv2.LINE_AA)
 
     return frame
 
