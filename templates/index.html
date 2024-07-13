@@ -1,239 +1,266 @@
-from flask import Flask, request, render_template, send_from_directory, jsonify
-from flask_socketio import SocketIO, emit
-from moviepy.editor import VideoFileClip
-import cv2
-import numpy as np
-import os
-import threading
-import imageio
-import logging
-import json
-import base64
-import shutil
-
-app = Flask(__name__)
-socketio = SocketIO(app)
-UPLOAD_FOLDER = 'uploads'
-PROCESSED_FOLDER = 'processed'
-SETTINGS_FOLDER = 'settings'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['PROCESSED_FOLDER'] = PROCESSED_FOLDER
-app.config['SETTINGS_FOLDER'] = SETTINGS_FOLDER
-
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
-
-if not os.path.exists(PROCESSED_FOLDER):
-    os.makedirs(PROCESSED_FOLDER)
-
-if not os.path.exists(SETTINGS_FOLDER):
-    os.makedirs(SETTINGS_FOLDER)
-
-# Setup logging
-logging.basicConfig(level=logging.ERROR, format='%(asctime)s %(levelname)s %(message)s')
-
-@app.route('/')
-def index():
-    logging.info(f'Function: {index.__name__} at line {index.__code__.co_firstlineno}')
-    return render_template('index.html')
-
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    logging.info(f'Function: {upload_file.__name__} at line {upload_file.__code__.co_firstlineno}')
-    if 'file' not in request.files:
-        return jsonify({'status': 'error', 'message': 'No file part'})
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'status': 'error', 'message': 'No selected file'})
-    if file:
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-        file.save(filepath)
-        #save_settings(request.form, request.files)
-        thread = threading.Thread(target=process_video, args=(filepath,))
-        thread.start()
-        return jsonify({'status': 'processing'})
-
-@app.route('/settings', methods=['POST'])
-def update_settings():
-    logging.info(f'Function: {update_settings.__name__} at line {update_settings.__code__.co_firstlineno}')
-    save_settings(request.form, request.files)
-    return jsonify({'status': 'success'})
-
-@app.route('/preview', methods=['POST'])
-def generate_preview():
-    logging.info(f'Function: {generate_preview.__name__} at line {generate_preview.__code__.co_firstlineno}')
-    #save_settings(request.form, request.files)
-    settings = load_settings()
-
-    # Use the first frame of the first video in the upload folder
-    files = os.listdir(app.config['UPLOAD_FOLDER'])
-    if not files:
-        return jsonify({'status': 'error', 'message': 'No uploaded videos found'})
-    first_video = os.path.join(app.config['UPLOAD_FOLDER'], files[0])
-    clip = VideoFileClip(first_video)
-    frame = clip.get_frame(0)
-    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-    frame = add_banners_and_logo(frame, 0, settings, preview=True)
-    _, buffer = cv2.imencode('.jpg', frame)
-    preview_image = base64.b64encode(buffer).decode('utf-8')
-    return jsonify({'status': 'success', 'image': preview_image})
-
-@app.route('/preview/<filename>')
-def preview_video(filename):
-    logging.info(f'Function: {preview_video.__name__} at line {preview_video.__code__.co_firstlineno}')
-    return send_from_directory(app.config['PROCESSED_FOLDER'], filename, mimetype='video/mp4')
-
-@app.route('/download/<filename>')
-def download_video(filename):
-    logging.info(f'Function: {download_video.__name__} at line {download_video.__code__.co_firstlineno}')
-    return send_from_directory(app.config['PROCESSED_FOLDER'], filename, as_attachment=True)
-
-def save_settings(form, files):
-    settings = {
-        'logo_x': form.get('logoX', default=10, type=int),
-        'logo_y': form.get('logoY', default=10, type=int),
-        'top_banner_color': form.get('topBannerColor', default='#006a4d'),
-        'bottom_banner_color': form.get('bottomBannerColor', default='#006a4d'),
-        'scrolling_text': form.get('scrollingText', default='Rootkit Racers'),
-    }
-    logo_file = files.get('logoFile')
-    if logo_file:
-        logo_filepath = os.path.join(app.config['SETTINGS_FOLDER'], 'logo.jpg')
-        logo_file.save(logo_filepath)
-        settings['logo_path'] = logo_filepath
-    settings_path = os.path.join(app.config['SETTINGS_FOLDER'], 'settings.json')
-    with open(settings_path, 'w') as f:
-        json.dump(settings, f)
-
-def load_settings():
-    settings_path = os.path.join(app.config['SETTINGS_FOLDER'], 'settings.json')
-    if os.path.exists(settings_path):
-        with open(settings_path, 'r') as f:
-            settings = json.load(f)
-    else:
-        settings = {
-            'logo_x': 10,
-            'logo_y': 10,
-            'top_banner_color': '#006a4d',
-            'bottom_banner_color': '#006a4d',
-            'logo_path': 'logo.jpg',
-            'scrolling_text': 'Rootkit Racers'
+<!doctype html>
+<html>
+<head>
+    <title>Video Editor</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        .progress-bar-complete {
+            background-color: #28a745 !important; /* Green color */
         }
-    return settings
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row">
+            <div class="col-md-4">
+                <h3>Settings</h3>
+                <form id="settingsForm" inert>
+                    <div class="form-group">
+                        <label for="logoX">Logo X Position</label>
+                        <input type="range" class="form-control-range" id="logoX" name="logoX" min="0" max="100" value="10">
+                    </div>
+                    <div class="form-group">
+                        <label for="logoY">Logo Y Position</label>
+                        <input type="range" class="form-control-range" id="logoY" name="logoY" min="0" max="100" value="10">
+                    </div>
+                    <div class="form-group">
+                        <label for="topBannerColor">Top Banner Color</label>
+                        <input type="color" class="form-control" id="topBannerColor" name="topBannerColor" value="#006a4d">
+                    </div>
+                    <div class="form-group">
+                        <label for="bottomBannerColor">Bottom Banner Color</label>
+                        <input type="color" class="form-control" id="bottomBannerColor" name="bottomBannerColor" value="#006a4d">
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="lockColors" name="lockColors" checked>
+                        <label class="form-check-label" for="lockColors">Lock Colors</label>
+                    </div>
+                    <div class="form-group">
+                        <label for="scrollingText">Scrolling Text</label>
+                        <input type="text" class="form-control" id="scrollingText" name="scrollingText" value="Rootkit Racers">
+                    </div>
+                    <div class="form-group">
+                        <label for="logoFile">Upload Logo</label>
+                        <input type="file" class="form-control-file" id="logoFile" name="logoFile" accept="image/*">
+                    </div>
+                    <button type="submit" id="previewButton" class="btn btn-secondary btn-block">Apply</button>
+                </form>
+            </div>
+            <div class="col-md-8">
+                <h1 class="text-center">Video Editor</h1>
+                <div class="mt-4">
+                    <button id="togglePreview" class="btn btn-primary mb-3" disabled>Show Processed Video</button>
+                    <div id="imagePreviewContainer">
+                        <h3>Image Preview</h3>
+                        <img id="previewImage" src="" style="width: 100%;" />
+                    </div>
+                    <div id="videoPreviewContainer" style="display:none;">
+                        <h3>Video Preview</h3>
+                        <video id="videoPreview" controls style="width: 100%;">
+                            <source id="videoSource" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
+                </div>
+                <form id="uploadForm" enctype="multipart/form-data" class="mt-4">
+                    <div class="form-group">
+                        <input type="file" class="form-control-file" id="file" name="file" accept="video/*">
+                    </div>
+                    <div class="d-flex">
+                        <button type="submit" id="processButton" class="btn btn-primary mr-2" disabled>Process Video</button>
+                        <a id="downloadButton" class="btn btn-success disabled" disabled>Download Video</a>
+                    </div>
+                </form>
+                <div class="mt-4">
+                    <div class="progress">
+                        <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                    </div>
+                    <p id="statusMessage"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        $(document).ready(function(){
+            var socket = io();
+            var processedVideoAvailable = false;
 
-def process_video(filepath):
-    logging.info(f'Function: {process_video.__name__} at line {process_video.__code__.co_firstlineno}')
-    try:
-        socketio.emit('status', {'message': 'Processing frames...'})
+            $('#file').on('change', function() {
+                if ($(this).val()) {
+                    $('#settingsForm').removeAttr('inert');
+                    $('#processButton').removeAttr('disabled');
+                } else {
+                    $('#settingsForm').attr('disabled', 'inert');
+                    $('#processButton').attr('disabled', 'disabled');
+                }
+            });
 
-        clip = VideoFileClip(filepath)
-        fps = clip.fps
-        duration = clip.duration
-        total_frames = int(duration * fps)
-        frames = []
+            $('#uploadForm').on('submit', function(e){
+                e.preventDefault();
 
-        settings = load_settings()
+                var formData = new FormData(this);
+                $.ajax({
+                    url: '/upload',
+                    type: 'POST',
+                    data: formData,
+                    success: function(response){
+                        if(response.status === 'processing') {
+                            $('#statusMessage').text('File uploaded successfully. Processing...');
+                            enableImageView();
+                        } else {
+                            $('#statusMessage').text('Error uploading file');
+                        }
+                    },
+                    error: function() {
+                        $('#statusMessage').text('Error uploading file');
+                    },
+                    cache: false,
+                    contentType: false,
+                    processData: false
+                });
+            });
 
-        for frame_idx, t in enumerate(np.arange(0, duration, 1/fps)):
-            frame = clip.get_frame(t)
-            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-            frame = add_banners_and_logo(frame, frame_idx, settings)
-            frames.append(frame)
-            progress = int((frame_idx / total_frames) * 100)
-            socketio.emit('progress', {'progress': progress})
+            function enableImageView() {
+                $('#imagePreviewContainer').show();
+                $('#videoPreviewContainer').hide();
+                $('#togglePreview').text('Show Processed Video');
+                $('#togglePreview').addClass('disabled');
+                $('#togglePreview').addAttr('disabled');
+            }
 
-        socketio.emit('status', {'message': 'Saving video...'})
+            $('#settingsForm').on('submit', function(e){
+                e.preventDefault();
+                var formData = new FormData(this);
+                $.ajax({
+                    url: '/settings',
+                    type: 'POST',
+                    data: formData,
+                    success: function(response){
+                        $('#statusMessage').text('Settings updated');
+                        updatePreview();
+                        $('#imagePreviewContainer').show();
+                        $('#videoPreviewContainer').hide();
+                        $('#togglePreview').text('Show Processed Video');
+                    },
+                    error: function() {
+                        $('#statusMessage').text('Error updating settings');
+                    },
+                    cache: false,
+                    contentType: false,
+                    processData: false
+                });
+            });
 
-        temp_output_filename = 'temp_output_video.mp4'
-        temp_output_path = os.path.join(app.config['PROCESSED_FOLDER'], temp_output_filename)
+            $('#settingsForm :input').on('change', function() {
+                var formData = new FormData($('#settingsForm')[0]);
+                $.ajax({
+                    url: '/settings',
+                    type: 'POST',
+                    data: formData,
+                    success: function(response){
+                        $('#statusMessage').text('Settings saved');
+                    },
+                    error: function() {
+                        $('#statusMessage').text('Error saving settings');
+                    },
+                    cache: false,
+                    contentType: false,
+                    processData: false
+                });
+            });
 
-        out = imageio.get_writer(uri=temp_output_path, fps=fps, codec='libx264', format='mp4')
+            $('#topBannerColor, #bottomBannerColor').on('change', function() {
+                if($('#lockColors').is(':checked')) {
+                    $('#bottomBannerColor').val($('#topBannerColor').val());
+                }
+                updatePreview();
+            });
 
-        for frame in frames:
-            out.append_data(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            $('#logoX, #logoY, #scrollingText').on('input', function() {
+                updatePreview();
+            });
 
-        out.close()
+            $('#togglePreview').on('click', function() {
+                togglePreview();
+            });
 
-        final_output_filename = 'output_video.mp4'
-        final_output_path = os.path.join(app.config['PROCESSED_FOLDER'], final_output_filename)
+            function togglePreview() {
+                if ($('#imagePreviewContainer').is(':visible')) {
+                    $('#imagePreviewContainer').hide();
+                    $('#videoPreviewContainer').show();
+                    $('#togglePreview').text('Show Image Preview');
+                    $('#videoPreview').get(0).load();
+                    setTimeout(function() {
+                        $('#videoPreview').get(0).play();
+                    }, 1000);
+                } else {
+                    $('#imagePreviewContainer').show();
+                    $('#videoPreviewContainer').hide();
+                    $('#togglePreview').text('Show Processed Video');
+                }
+            }
 
-        shutil.copyfile(temp_output_path, final_output_path)
-        
-        socketio.emit('progress', {'progress': 100})
-        socketio.emit('status', {'message': 'Processing complete.'})
-        socketio.emit('processing_done', {'filename': final_output_filename})
-    except Exception as e:
-        logging.error(f'Error during processing: {str(e)} at line {process_video.__code__.co_firstlineno + e.__traceback__.tb_lineno}')
-        socketio.emit('status', {'message': f'Error during processing: {str(e)}'})
+            function updatePreview() {
+                var formData = new FormData($('#settingsForm')[0]);
+                $.ajax({
+                    url: '/preview',
+                    type: 'POST',
+                    data: formData,
+                    success: function(response){
+                        $('#previewImage').attr('src', 'data:image/jpeg;base64,' + response.image);
+                        $('#statusMessage').text('Preview updated');
+                    },
+                    error: function() {
+                        $('#statusMessage').text('Error generating preview');
+                    },
+                    cache: false,
+                    contentType: false,
+                    processData: false
+                });
+            }
 
-def hex_to_bgr(hex_color):
-    # Remove the '#' character if present
-    hex_color = hex_color.lstrip('#')
-    
-    # Extract RGB components
-    r = int(hex_color[0:2], 16)
-    g = int(hex_color[2:4], 16)
-    b = int(hex_color[4:6], 16)
-    
-    # Return BGR tuple
-    return (b, g, r)
+            socket.on('progress', function(data){
+                $('#progressBar').css('width', data.progress + '%').attr('aria-valuenow', data.progress).text(data.progress + '%');
+                if (data.progress === 100) {
+                    $('#progressBar').addClass('progress-bar-complete');
+                } else {
+                    $('#progressBar').removeClass('progress-bar-complete');
+                }
+            });
 
-def add_banners_and_logo(frame, frame_idx, settings, preview=False):
-    logging.info(f'Function: {add_banners_and_logo.__name__} at line {add_banners_and_logo.__code__.co_firstlineno}')
-    top_banner_height = 50
-    bottom_banner_height = 50
-    top_banner_color = hex_to_bgr(settings['top_banner_color'])
-    bottom_banner_color = hex_to_bgr(settings['bottom_banner_color'])
-    logo_path = settings.get('logo_path', 'logo.jpg')
-    logo_size = (50, 50)
+            socket.on('status', function(data){
+                $('#statusMessage').text(data.message);
+            });
 
-    h, w, _ = frame.shape
-    top_banner = np.zeros((top_banner_height, w, 3), dtype=np.uint8)
-    top_banner[:] = top_banner_color
-    frame = np.vstack((top_banner, frame))
+            socket.on('processing_done', function(data){
+                processedVideoAvailable = true;
+                $('#videoSource').attr('src', '/preview/' + data.filename);
+                $('#videoPreview').get(0).pause();
+                $('#videoPreview').get(0).load();
+                setTimeout(function() {
+                    $('#videoPreview').get(0).play();
+                }, 1000);
+                $('#downloadButton').attr('href', '/download/' + data.filename);
+                $('#downloadButton').removeClass('disabled');
+                $('#downloadButton').removeAttr('disabled');
+                $('#imagePreviewContainer').hide();
+                $('#videoPreviewContainer').show();
+                $('#togglePreview').removeClass('disabled');
+                $('#togglePreview').removeAttr('disabled');
+                $('#togglePreview').text('Show Image Preview');
+            });
 
-    bottom_banner = np.zeros((bottom_banner_height, w, 3), dtype=np.uint8)
-    bottom_banner[:] = bottom_banner_color
-    frame = np.vstack((frame, bottom_banner))
-
-    if logo_path:
-        logo = cv2.imread(logo_path, cv2.IMREAD_UNCHANGED)
-        logo = cv2.resize(logo, logo_size)
-        logo_h, logo_w, logo_c = logo.shape
-
-        logo_x = settings.get('logo_x', 10)
-        logo_y = settings.get('logo_y', 10)
-
-        if logo_c == 4:
-            alpha_logo = logo[:, :, 3] / 255.0
-            alpha_frame = 1.0 - alpha_logo
-
-            for c in range(0, 3):
-                frame[logo_y:logo_y+logo_h, logo_x:logo_x+logo_w, c] = (alpha_logo * logo[:, :, c] +
-                                                    alpha_frame * frame[logo_y:logo_y+logo_h, logo_x:logo_x+logo_w, c])
-        else:
-            frame[logo_y:logo_y+logo_h, logo_x:logo_x+logo_w] = logo
-
-    # Add scrolling text
-    font_scale = 1
-    font_thickness = 2
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    text_size = cv2.getTextSize(settings.get('scrolling_text', 'Rootkit Racers'), font, font_scale, font_thickness)[0]
-
-    # Adjust scrolling speed for preview
-    scroll_speed = 5
-    if preview:
-        # Start text halfway along its path for preview
-        horizontal_shift = (w // 2) + (text_size[0] // 2)
-    else:
-        horizontal_shift = (scroll_speed * frame_idx) % (w + text_size[0])
-
-    text_x = int(w - horizontal_shift)
-    text_y = int(h + 1.75 * bottom_banner_height)  # Adjust the text position vertically
-
-    cv2.putText(frame, settings.get('scrolling_text', 'Rootkit Racers'), (text_x, text_y), font, font_scale, (255, 255, 255), font_thickness, cv2.LINE_AA)
-
-    return frame
-
-if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=8080, debug=True)
+            $('#downloadButton').on('click', function(){
+                if (!processedVideoAvailable) {
+                    return false;  // prevent default action if video is not ready
+                }
+            });
+        });
+    </script>
+</body>
+</html>
