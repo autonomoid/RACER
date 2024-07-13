@@ -10,13 +10,55 @@
 <body>
     <div class="container mt-5">
         <div class="row">
-            <div class="col-md-8 offset-md-2">
+            <div class="col-md-4">
+                <h3>Settings</h3>
+                <form id="settingsForm">
+                    <div class="form-group">
+                        <label for="logoX">Logo X Position</label>
+                        <input type="range" class="form-control-range" id="logoX" name="logoX" min="0" max="100" value="10">
+                    </div>
+                    <div class="form-group">
+                        <label for="logoY">Logo Y Position</label>
+                        <input type="range" class="form-control-range" id="logoY" name="logoY" min="0" max="100" value="10">
+                    </div>
+                    <div class="form-group">
+                        <label for="topBannerColor">Top Banner Color</label>
+                        <input type="color" class="form-control" id="topBannerColor" name="topBannerColor" value="#4d6a00">
+                    </div>
+                    <div class="form-group">
+                        <label for="bottomBannerColor">Bottom Banner Color</label>
+                        <input type="color" class="form-control" id="bottomBannerColor" name="bottomBannerColor" value="#4d6a00">
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="lockColors" name="lockColors" checked>
+                        <label class="form-check-label" for="lockColors">Lock Colors</label>
+                    </div>
+                    <div class="form-group">
+                        <label for="scrollingText">Scrolling Text</label>
+                        <input type="text" class="form-control" id="scrollingText" name="scrollingText" value="Rootkit Racers">
+                    </div>
+                    <div class="form-group">
+                        <label for="logoFile">Upload Logo</label>
+                        <input type="file" class="form-control-file" id="logoFile" name="logoFile" accept="image/*">
+                    </div>
+                    <button type="submit" class="btn btn-secondary btn-block">Apply Settings</button>
+                </form>
+            </div>
+            <div class="col-md-8">
                 <h1 class="text-center">Video Editor</h1>
                 <div class="mt-4">
-                    <video id="videoPreview" controls style="width: 100%;">
-                        <source id="videoSource" type="video/mp4">
-                        Your browser does not support the video tag.
-                    </video>
+                    <button id="togglePreview" class="btn btn-primary mb-3">Show Processed Video</button>
+                    <div id="imagePreviewContainer">
+                        <h3>Image Preview</h3>
+                        <img id="previewImage" src="" style="width: 100%;" />
+                    </div>
+                    <div id="videoPreviewContainer" style="display:none;">
+                        <h3>Video Preview</h3>
+                        <video id="videoPreview" controls style="width: 100%;">
+                            <source id="videoSource" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
                 </div>
                 <form id="uploadForm" enctype="multipart/form-data" class="mt-4">
                     <div class="form-group">
@@ -38,6 +80,7 @@
     <script>
         $(document).ready(function(){
             var socket = io();
+            var processedVideoAvailable = false;
 
             $('#uploadForm').on('submit', function(e){
                 e.preventDefault();
@@ -62,6 +105,53 @@
                 });
             });
 
+            $('#settingsForm').on('submit', function(e){
+                e.preventDefault();
+                updatePreview();
+            });
+
+            $('#topBannerColor, #bottomBannerColor').on('change', function() {
+                if($('#lockColors').is(':checked')) {
+                    $('#bottomBannerColor').val($('#topBannerColor').val());
+                }
+                updatePreview();
+            });
+
+            $('#logoX, #logoY, #scrollingText').on('input', function() {
+                updatePreview();
+            });
+
+            $('#togglePreview').on('click', function() {
+                if ($('#imagePreviewContainer').is(':visible')) {
+                    $('#imagePreviewContainer').hide();
+                    $('#videoPreviewContainer').show();
+                    $('#togglePreview').text('Show Image Preview');
+                } else {
+                    $('#imagePreviewContainer').show();
+                    $('#videoPreviewContainer').hide();
+                    $('#togglePreview').text('Show Processed Video');
+                }
+            });
+
+            function updatePreview() {
+                var formData = new FormData($('#settingsForm')[0]);
+                $.ajax({
+                    url: '/preview',
+                    type: 'POST',
+                    data: formData,
+                    success: function(response){
+                        $('#previewImage').attr('src', 'data:image/jpeg;base64,' + response.image);
+                        $('#statusMessage').text('Preview updated');
+                    },
+                    error: function() {
+                        $('#statusMessage').text('Error generating preview');
+                    },
+                    cache: false,
+                    contentType: false,
+                    processData: false
+                });
+            }
+
             socket.on('progress', function(data){
                 $('#progressBar').css('width', data.progress + '%').attr('aria-valuenow', data.progress).text(data.progress + '%');
             });
@@ -71,6 +161,7 @@
             });
 
             socket.on('processing_done', function(data){
+                processedVideoAvailable = true;
                 $('#videoSource').attr('src', '/preview/' + data.filename);
                 $('#videoPreview').get(0).load();
                 setTimeout(function() {
