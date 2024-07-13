@@ -47,6 +47,7 @@ def upload_file():
     if file:
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
         file.save(filepath)
+        save_settings(request.form, request.files)
         thread = threading.Thread(target=process_video, args=(filepath,))
         thread.start()
         return jsonify({'status': 'processing'})
@@ -71,7 +72,7 @@ def generate_preview():
     clip = VideoFileClip(first_video)
     frame = clip.get_frame(0)
     frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-    frame = add_banners_and_logo(frame, 0, settings)
+    frame = add_banners_and_logo(frame, 0, settings, preview=True)
     _, buffer = cv2.imencode('.jpg', frame)
     preview_image = base64.b64encode(buffer).decode('utf-8')
     return jsonify({'status': 'success', 'image': preview_image})
@@ -85,8 +86,8 @@ def save_settings(form, files):
     settings = {
         'logo_x': form.get('logoX', default=10, type=int),
         'logo_y': form.get('logoY', default=10, type=int),
-        'top_banner_color': form.get('topBannerColor', default='#006a4d'),
-        'bottom_banner_color': form.get('bottomBannerColor', default='#006a4d'),
+        'top_banner_color': form.get('topBannerColor', default='#4d6a00'),
+        'bottom_banner_color': form.get('bottomBannerColor', default='#4d6a00'),
         'scrolling_text': form.get('scrollingText', default='Rootkit Racers'),
     }
     logo_file = files.get('logoFile')
@@ -107,8 +108,8 @@ def load_settings():
         settings = {
             'logo_x': 10,
             'logo_y': 10,
-            'top_banner_color': '#006a4d',
-            'bottom_banner_color': '#006a4d',
+            'top_banner_color': '#4d6a00',
+            'bottom_banner_color': '#4d6a00',
             'logo_path': 'logo.jpg',
             'scrolling_text': 'Rootkit Racers'
         }
@@ -166,14 +167,12 @@ def hex_to_bgr(hex_color):
     # Return BGR tuple
     return (b, g, r)
 
-def add_banners_and_logo(frame, frame_idx, settings):
+def add_banners_and_logo(frame, frame_idx, settings, preview=False):
     logging.info(f'Function: {add_banners_and_logo.__name__} at line {add_banners_and_logo.__code__.co_firstlineno}')
     top_banner_height = 50
     bottom_banner_height = 50
-
     top_banner_color = hex_to_bgr(settings['top_banner_color'])
     bottom_banner_color = hex_to_bgr(settings['bottom_banner_color'])
-
     logo_path = settings.get('logo_path', 'logo.jpg')
     logo_size = (50, 50)
 
@@ -212,10 +211,14 @@ def add_banners_and_logo(frame, frame_idx, settings):
 
     # Adjust scrolling speed for preview
     scroll_speed = 5
-    horizontal_shift = (scroll_speed * frame_idx) % (w + text_size[0])
+    if preview:
+        # Start text halfway along its path for preview
+        horizontal_shift = (w // 2) + (text_size[0] // 2)
+    else:
+        horizontal_shift = (scroll_speed * frame_idx) % (w + text_size[0])
 
     text_x = int(w - horizontal_shift)
-    text_y = int(h + 1.75 * bottom_banner_height) # Adjust the text position vertically
+    text_y = int(h + 1.75 * bottom_banner_height)  # Adjust the text position vertically
 
     cv2.putText(frame, settings.get('scrolling_text', 'Rootkit Racers'), (text_x, text_y), font, font_scale, (255, 255, 255), font_thickness, cv2.LINE_AA)
 
