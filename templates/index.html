@@ -72,6 +72,9 @@
                     </div>
                     <p id="statusMessage"></p>
                 </div>
+                <div class="mt-4" id="downloadContainer" style="display: none;">
+                    <a id="downloadButton" class="btn btn-success btn-block">Download Processed Video</a>
+                </div>
             </div>
         </div>
     </div>
@@ -182,6 +185,17 @@
                 setTimeout(function() {
                     $('#videoPreview').get(0).play();
                 }, 500);
+                $('#imagePreviewContainer').hide();
+                $('#videoPreviewContainer').show();
+                $('#togglePreview').text('Show Image Preview');
+                $('#downloadContainer').show();
+                $('#downloadButton').attr('href', '/download/' + data.filename);
+            });
+
+            $('#downloadButton').on('click', function(){
+                if (processedVideoAvailable) {
+                    window.location.href = $(this).attr('href');
+                }
             });
         });
     </script>
