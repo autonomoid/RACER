@@ -107,7 +107,22 @@
 
             $('#settingsForm').on('submit', function(e){
                 e.preventDefault();
-                updatePreview();
+                var formData = new FormData(this);
+                $.ajax({
+                    url: '/settings',
+                    type: 'POST',
+                    data: formData,
+                    success: function(response){
+                        $('#statusMessage').text('Settings updated');
+                        updatePreview();
+                    },
+                    error: function() {
+                        $('#statusMessage').text('Error updating settings');
+                    },
+                    cache: false,
+                    contentType: false,
+                    processData: false
+                });
             });
 
             $('#topBannerColor, #bottomBannerColor').on('change', function() {
