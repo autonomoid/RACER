@@ -85,8 +85,8 @@ def save_settings(form, files):
     settings = {
         'logo_x': form.get('logoX', default=10, type=int),
         'logo_y': form.get('logoY', default=10, type=int),
-        'top_banner_color': form.get('topBannerColor', default='#4d6a00'),
-        'bottom_banner_color': form.get('bottomBannerColor', default='#4d6a00'),
+        'top_banner_color': form.get('topBannerColor', default='#006a4d'),
+        'bottom_banner_color': form.get('bottomBannerColor', default='#006a4d'),
         'scrolling_text': form.get('scrollingText', default='Rootkit Racers'),
     }
     logo_file = files.get('logoFile')
@@ -107,8 +107,8 @@ def load_settings():
         settings = {
             'logo_x': 10,
             'logo_y': 10,
-            'top_banner_color': '#4d6a00',
-            'bottom_banner_color': '#4d6a00',
+            'top_banner_color': '#006a4d',
+            'bottom_banner_color': '#006a4d',
             'logo_path': 'logo.jpg',
             'scrolling_text': 'Rootkit Racers'
         }
@@ -153,12 +153,27 @@ def process_video(filepath):
         logging.error(f'Error during processing: {str(e)} at line {process_video.__code__.co_firstlineno + e.__traceback__.tb_lineno}')
         socketio.emit('status', {'message': f'Error during processing: {str(e)}'})
 
+
+def hex_to_bgr(hex_color):
+    # Remove the '#' character if present
+    hex_color = hex_color.lstrip('#')
+    
+    # Extract RGB components
+    r = int(hex_color[0:2], 16)
+    g = int(hex_color[2:4], 16)
+    b = int(hex_color[4:6], 16)
+    
+    # Return BGR tuple
+    return (b, g, r)
+
 def add_banners_and_logo(frame, frame_idx, settings):
     logging.info(f'Function: {add_banners_and_logo.__name__} at line {add_banners_and_logo.__code__.co_firstlineno}')
     top_banner_height = 50
     bottom_banner_height = 50
-    top_banner_color = tuple(int(settings['top_banner_color'].lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
-    bottom_banner_color = tuple(int(settings['bottom_banner_color'].lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+
+    top_banner_color = hex_to_bgr(settings['top_banner_color'])
+    bottom_banner_color = hex_to_bgr(settings['bottom_banner_color'])
+
     logo_path = settings.get('logo_path', 'logo.jpg')
     logo_size = (50, 50)
 
