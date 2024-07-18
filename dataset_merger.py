@@ -1,15 +1,21 @@
 import os
 import shutil
 
+###########################################################
+
 # Define the source directories
 source_dirs = [
     os.path.join('datasets', 'car_front'),
     os.path.join('datasets', 'car_rear'),
-    os.path.join('datasets', 'car_left')
+    os.path.join('datasets', 'car_left'),
+    os.path.join('datasets', 'car_right'),
+    os.path.join('datasets', 'car_top'),
 ]
 
 # Define the target directory
-target_dir = os.path.join('datasets', 'car_front-rear-left')
+target_dir = os.path.join('datasets', 'car_front-rear-left-right-top')
+
+###########################################################
 
 # Define the subfolders to be merged
 subfolders = [
@@ -17,8 +23,6 @@ subfolders = [
     os.path.join('train', 'labels'),
     os.path.join('val', 'images'),
     os.path.join('val', 'labels'),
-    os.path.join('test', 'images'),
-    os.path.join('test', 'labels'),
 ]
 
 # Create the target subfolders if they don't exist

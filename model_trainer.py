@@ -8,7 +8,7 @@ def main():
     model_name = "yolov8n"
     #model_name = "yolov10b"
 
-    dataset = "car_front-rear"
+    dataset = "car_front-rear-left-right-top"
 
     ###########################################################
 

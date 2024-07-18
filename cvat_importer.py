@@ -4,8 +4,14 @@ import random
 
 ###########################################################
 
-dataset = 'car_left'
-source_dir = r'C:\\Users\\auton\\Downloads\\car_left\\obj_train_data'
+source_video = '2023_London_Highlights' # Where the images originated from.
+dataset = 'car_right' # Where the new files will be copied to.
+
+#source_dir = r'C:\\Users\\auton\\Downloads\\task_left_view_dataset_2024_07_13_12_46_03_yolo_1.1\\obj_train_data'
+#source_dir = r'C:\\Users\\auton\\Downloads\\task_rear_view_dataset_2024_07_13_15_36_01_yolo_1.1\\obj_train_data'
+#source_dir = r'C:\\Users\\auton\\Downloads\\task_top_view_dataset_2024_07_12_14_29_26_yolo_1.1\\obj_train_data'
+source_dir = r'C:\\Users\\auton\\Downloads\\task_right_view_dataset_2024_07_13_12_17_51_yolo_1.1\\obj_train_data'
+
 
 ###########################################################
 
@@ -44,13 +50,17 @@ val_files = paired_files[split_index:]
 print(f'Training files: {len(training_files)}')
 print(f'Validation files: {len(val_files)}')
 
-# Function to copy files to the target directory
+# Function to copy files to the target directory with source_video prepended to the file names
 def copy_files(file_pairs, image_target_dir, label_target_dir):
     for img_file, txt_file in file_pairs:
+        # Prepend the source_video to the file names
+        new_img_file = f"{source_video}_{os.path.basename(img_file)}"
+        new_txt_file = f"{source_video}_{os.path.basename(txt_file)}"
+        
         # Copy the image file
-        shutil.copy(os.path.join(source_dir, img_file), os.path.join(image_target_dir, img_file))
+        shutil.copy(os.path.join(source_dir, img_file), os.path.join(image_target_dir, new_img_file))
         # Copy the text file
-        shutil.copy(os.path.join(source_dir, txt_file), os.path.join(label_target_dir, txt_file))
+        shutil.copy(os.path.join(source_dir, txt_file), os.path.join(label_target_dir, new_txt_file))
 
 # Copy the training files
 copy_files(training_files, training_images_dir, training_labels_dir)

@@ -1,0 +1,6 @@
+path: ../datasets
+train: car_front-rear-left-right-top/train
+test: car_front-rear-left-right-top/test
+val: car_front-rear-left-right-top/val
+nc: 7
+names: ['car', 'car_rear', 'car_front', 'car_left', 'car_right', 'car_top', 'car_inside']
