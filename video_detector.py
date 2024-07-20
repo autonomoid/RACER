@@ -6,18 +6,19 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
+from moviepy.editor import VideoFileClip, AudioFileClip
 
 ###########################################################
 
-model_name = "yolov8n"
-#model_name = "yolov10b"
+model_name = "yolov10b"
 
 dataset = "car_front-rear-left-right-top"
 
-#input_video = r'datasets\\raw_data\\videos\\epic_moments.mp4'
-input_video = r'datasets\\raw_data\\videos\\2023_London_Highlights.mp4'
+input_video = r'datasets\\raw_data\\videos\\2024_London_Highlights.mp4'
 
-confidence_threshold = 0.85
+confidence_threshold = 0.95
+
+output_duration = 540 # seconds
 
 ###########################################################
 
@@ -32,6 +33,9 @@ os.makedirs(output_dir, exist_ok=True)
 output_file = os.path.basename(input_video)
 output_path = os.path.join(output_dir, output_file)
 
+# Read video with moviepy to keep audio
+video = VideoFileClip(input_video)
+
 # Open the video file
 cap = cv2.VideoCapture(input_video)
 
@@ -42,11 +46,13 @@ fps = cap.get(cv2.CAP_PROP_FPS)
 total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
 # Create VideoWriter object to save processed video
-out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+out = cv2.VideoWriter('temp_output.mp4', cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
 
 # Process each frame in the video
+total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+frames_to_process = min(output_duration * fps, total_frames)
+
 frame_count = 0
-frames_to_process = 10000
 while frame_count < frames_to_process:
     ret, frame = cap.read()
     if not ret:
@@ -103,6 +109,18 @@ while frame_count < frames_to_process:
 # Release resources
 cap.release()
 out.release()
-cv2.destroyAllWindows()
+
+# Combine processed video with original audio using moviepy
+print("Adding audio track.")
+audio_duration = frames_to_process / fps
+
+audio = video.audio.subclip(0, audio_duration)
+processed_video = VideoFileClip('temp_output.mp4')
+final_video = processed_video.set_audio(audio)
+final_video.write_videofile(output_path, codec='libx264')
+
+# Clean up temporary file
+import os
+os.remove('temp_output.mp4')
 
 print("Processing complete.")
