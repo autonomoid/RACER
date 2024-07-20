@@ -16,9 +16,10 @@ dataset = "car_front-rear-left-right-top"
 
 input_video = r'datasets\\raw_data\\videos\\2024_London_Highlights.mp4'
 
-confidence_threshold = 0.95
+confidence_threshold = 0.85
 
-output_duration = 540 # seconds
+start_time = 60 # seconds
+output_duration = 180 # seconds
 
 ###########################################################
 
@@ -38,19 +39,25 @@ video = VideoFileClip(input_video)
 
 # Open the video file
 cap = cv2.VideoCapture(input_video)
+cap.set(cv2.CAP_PROP_POS_MSEC, start_time * 1000)  # Set start time in milliseconds
 
 # Get video details
 width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 fps = cap.get(cv2.CAP_PROP_FPS)
 total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+total_duration = total_frames / fps
 
 # Create VideoWriter object to save processed video
 out = cv2.VideoWriter('temp_output.mp4', cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
 
 # Process each frame in the video
-total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-frames_to_process = min(output_duration * fps, total_frames)
+start_frame = start_time * fps
+
+end_time = min(start_time + output_duration, total_duration)
+end_frame = end_time * fps
+
+frames_to_process = end_frame - start_frame
 
 frame_count = 0
 while frame_count < frames_to_process:
@@ -114,7 +121,7 @@ out.release()
 print("Adding audio track.")
 audio_duration = frames_to_process / fps
 
-audio = video.audio.subclip(0, audio_duration)
+audio = video.audio.subclip(start_time, start_time + audio_duration)
 processed_video = VideoFileClip('temp_output.mp4')
 final_video = processed_video.set_audio(audio)
 final_video.write_videofile(output_path, codec='libx264')
